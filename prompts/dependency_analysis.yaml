@@ -1,0 +1,45 @@
+# Dependency Analysis Prompt Configuration
+
+# Модель для анализа зависимостей (быстрая модель для простой задачи)
+# Примеры через OpenRouter:
+# - "anthropic/claude-3-haiku" - быстрая и дешевая
+# - "openai/gpt-4o-mini" - быстрая OpenAI модель
+# - "google/gemini-flash-1.5" - быстрая Google модель
+
+model: "anthropic/claude-3-haiku"
+temperature: 0.3
+reasoning_effort: "medium"  # low, medium, high (для моделей с reasoning)
+max_tokens: 8000
+
+system_prompt: |
+  You are a scientific document analyzer. Your task is to identify logical dependencies between sections.
+
+  A section A depends on section B if:
+  - Section A uses definitions, theorems, or results from section B
+  - Section A references concepts introduced in section B
+  - Section A logically relies on material from section B
+
+  Be precise and conservative in identifying dependencies.
+
+user_prompt_template: |
+  Проанализируй структуру научной статьи и определи логические зависимости между секциями.
+
+  Секция A зависит от секции B, если:
+  - В секции A используются определения, теоремы или результаты из секции B
+  - В секции A ссылается на концепции, введенные в секции B
+  - Секция A логически опирается на материал из секции B
+
+  Секции документа:
+  {sections_json}
+
+  Верни результат в формате JSON:
+  {{
+    "dependencies": {{
+      "section_id": ["dependency_id1", "dependency_id2", ...],
+      ...
+    }}
+  }}
+
+  Если секция не имеет зависимостей, укажи пустой список.
+  Используй только ID секций из предоставленного списка.
+  Не добавляй объяснений, только JSON.

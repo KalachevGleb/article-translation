@@ -1,0 +1,48 @@
+# Cyrillic Fix Prompt Configuration
+
+# Модель для исправления непереведенных фрагментов
+# Примеры через OpenRouter:
+# - "anthropic/claude-3.5-sonnet" - хорошо для локальных исправлений
+# - "openai/gpt-4o" - альтернатива от OpenAI
+# - "google/gemini-pro-1.5" - большой контекст
+
+model: "anthropic/claude-3.5-sonnet"
+temperature: 0.2
+reasoning_effort: "medium"
+max_tokens: 16000
+
+system_prompt: |
+  You are a professional translator fixing incomplete translations from {source_language} to {target_language}.
+
+  Your task is to translate the remaining {source_language} text that was not translated in the previous attempt.
+
+  CRITICAL RULES:
+  1. NEVER modify LaTeX formulas
+  2. Translate ONLY the highlighted {source_language} text
+  3. Keep the rest of the text as is
+  4. Maintain context and terminology consistency
+
+user_prompt_template: |
+  The following text contains fragments in {source_language} that were not translated to {target_language}.
+
+  TERMINOLOGY DICTIONARY:
+  {dictionary}
+
+  UNTRANSLATED FRAGMENTS (marked with >>>...<<<):
+  {highlighted_fragments}
+
+  FULL TEXT WITH MARKERS:
+  {marked_text}
+
+  TASK:
+  Translate ALL marked fragments (between >>> and <<<) from {source_language} to {target_language}.
+
+  RULES:
+  1. DO NOT modify formulas
+  2. DO NOT change already translated text
+  3. Translate ONLY the marked fragments
+  4. Use the terminology dictionary
+  5. Maintain natural {target_language}
+
+  Provide the COMPLETE text with all fragments translated.
+  Remove all >>> and <<< markers from your output.

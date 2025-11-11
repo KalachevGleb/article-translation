@@ -1,0 +1,42 @@
+openai:
+  api_key: ${OPENROUTER_API_KEY}  # или ${OPENAI_API_KEY} для прямого API
+  base_url: "https://openrouter.ai/api/v1"  # закомментировать для прямого OpenAI API
+  model: "anthropic/claude-3.5-sonnet"  # формат: "provider/model" для OpenRouter
+  temperature: 0.3
+  max_tokens: 16000
+
+  # Примеры моделей через OpenRouter:
+  # - "anthropic/claude-3.5-sonnet" - Claude 3.5 Sonnet
+  # - "anthropic/claude-3-opus" - Claude 3 Opus
+  # - "openai/gpt-4o" - GPT-4o
+  # - "openai/o1" - OpenAI o1
+  # - "google/gemini-pro-1.5" - Gemini Pro 1.5
+  # - "meta-llama/llama-3.1-405b-instruct" - Llama 3.1 405B
+
+translation:
+  source_language: "russian"
+  target_language: "english"
+  max_retries: 2
+  auto_mode: true  # false для интерактивного уточнения терминов
+
+terminology:
+  database_path: "terms.db"
+  embedding_model: "text-embedding-3-large"
+  similarity_threshold: 0.85
+  max_similar_terms: 5
+
+output:
+  report_format: "html"
+  mark_problematic: true
+  problem_color: "red"
+  add_footnotes: true
+
+latex:
+  flatten_inputs: true
+  preserve_comments: false
+  supported_envs:
+    - equation
+    - align
+    - gather
+    - multline
+    - eqnarray
