@@ -1,0 +1,33 @@
+openai:
+  api_key: ${OPENAI_API_KEY}
+  model: "o3-mini"  # или "o3" для более качественного перевода
+  temperature: 0.3
+  max_tokens: 16000
+
+translation:
+  source_language: "russian"
+  target_language: "english"
+  max_retries: 2
+  auto_mode: true  # false для интерактивного уточнения терминов
+
+terminology:
+  database_path: "terms.db"
+  embedding_model: "text-embedding-3-large"
+  similarity_threshold: 0.85
+  max_similar_terms: 5
+
+output:
+  report_format: "html"
+  mark_problematic: true
+  problem_color: "red"
+  add_footnotes: true
+
+latex:
+  flatten_inputs: true
+  preserve_comments: false
+  supported_envs:
+    - equation
+    - align
+    - gather
+    - multline
+    - eqnarray
