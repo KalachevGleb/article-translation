@@ -14,6 +14,8 @@ from .terminology_manager import TerminologyManager
 from .translation_engine import TranslationEngine
 from .formula_validator import FormulaValidator
 from .report_generator import ReportGenerator
+from .prompt_loader import PromptLoader
+from .cyrillic_validator import CyrillicValidator
 
 
 class ArticleTranslator:
@@ -50,13 +52,20 @@ class ArticleTranslator:
             preserve_comments=self.config["latex"].get("preserve_comments", False)
         )
 
-        self.dependency_analyzer = DependencyAnalyzer(self.openai_client)
+        # Initialize prompt loader
+        self.prompt_loader = PromptLoader()
+
+        self.dependency_analyzer = DependencyAnalyzer(
+            self.openai_client,
+            prompt_loader=self.prompt_loader,
+        )
 
         self.terminology_manager = TerminologyManager(
             self.openai_client,
             db_path=self.config["terminology"]["database_path"],
             embedding_model=self.config["terminology"]["embedding_model"],
             similarity_threshold=self.config["terminology"]["similarity_threshold"],
+            prompt_loader=self.prompt_loader,
         )
 
         self.translation_engine = TranslationEngine(
@@ -64,9 +73,12 @@ class ArticleTranslator:
             source_language=self.config["translation"]["source_language"],
             target_language=self.config["translation"]["target_language"],
             max_retries=self.config["translation"]["max_retries"],
+            prompt_loader=self.prompt_loader,
         )
 
         self.formula_validator = FormulaValidator(self.latex_parser)
+
+        self.cyrillic_validator = CyrillicValidator(self.latex_parser)
 
         self.report_generator = ReportGenerator()
 
@@ -179,6 +191,16 @@ class ArticleTranslator:
             # Mark problematic paragraphs if configured
             if self.config["output"]["mark_problematic"] and problematic:
                 self._mark_problematic_paragraphs(document, problematic)
+
+            # Phase 5.5: Validate Cyrillic (for Russian source)
+            cyrillic_issues_count = 0
+            if self.config["translation"]["source_language"].lower() in ["russian", "ukrainian", "belarusian"]:
+                print("\n[5.5/6] Validating Cyrillic text...")
+                cyrillic_issues_count = self._validate_and_fix_cyrillic(document, dictionary)
+                if cyrillic_issues_count > 0:
+                    print(f"  Fixed {cyrillic_issues_count} section(s) with Cyrillic text")
+                else:
+                    print(f"  No Cyrillic text found in translation")
 
             # Phase 6: Generate output
             print("\n[6/6] Generating output...")
@@ -374,3 +396,80 @@ class ArticleTranslator:
             parts.append(document.postamble.strip())
 
         return "\n".join(parts)
+
+    def _validate_and_fix_cyrillic(
+        self,
+        document: Document,
+        dictionary: Dict[str, str],
+    ) -> int:
+        """Validate and fix Cyrillic text in translations.
+
+        Args:
+            document: Document to validate
+            dictionary: Terminology dictionary
+
+        Returns:
+            Number of sections with fixed Cyrillic
+        """
+        source_lang = self.config["translation"]["source_language"]
+        fixed_count = 0
+
+        for section in document.sections:
+            if not section.translation:
+                continue
+
+            # Check for Cyrillic
+            is_valid, fragments = self.cyrillic_validator.validate_section(
+                section.content,
+                section.translation,
+                source_lang,
+            )
+
+            if not is_valid:
+                print(f"  Found Cyrillic in section: {section.title}")
+                print(f"    Fragments: {len(fragments)}")
+
+                # Mark fragments
+                marked_text, count = self.cyrillic_validator.mark_cyrillic_fragments(
+                    section.translation,
+                    marker_start=">>>",
+                    marker_end="<<<",
+                )
+
+                # Extract highlighted fragments
+                highlighted = self.cyrillic_validator.extract_highlighted_fragments(
+                    marked_text,
+                    marker_start=">>>",
+                    marker_end="<<<",
+                )
+
+                # Fix with LLM
+                try:
+                    fixed_text = self.translation_engine.fix_cyrillic(
+                        section.translation,
+                        marked_text,
+                        highlighted,
+                        dictionary,
+                    )
+
+                    # Update translation
+                    section.translation = fixed_text
+                    section.translation_attempts += 1
+                    fixed_count += 1
+
+                    # Verify fix
+                    is_valid_after, fragments_after = self.cyrillic_validator.validate_section(
+                        section.content,
+                        section.translation,
+                        source_lang,
+                    )
+
+                    if not is_valid_after:
+                        print(f"    Warning: Still has {len(fragments_after)} Cyrillic fragment(s) after fix")
+                    else:
+                        print(f"    Successfully fixed all Cyrillic fragments")
+
+                except Exception as e:
+                    print(f"    Error fixing Cyrillic: {e}")
+
+        return fixed_count

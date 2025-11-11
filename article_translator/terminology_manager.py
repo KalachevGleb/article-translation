@@ -10,6 +10,7 @@ from chromadb.config import Settings
 
 from .models import Term, Document
 from .openai_client import OpenAIClient
+from .prompt_loader import PromptLoader
 
 
 class TerminologyManager:
@@ -21,6 +22,7 @@ class TerminologyManager:
         db_path: str = "terms.db",
         embedding_model: str = "text-embedding-3-large",
         similarity_threshold: float = 0.85,
+        prompt_loader: Optional[PromptLoader] = None,
     ):
         """Initialize terminology manager.
 
@@ -29,10 +31,12 @@ class TerminologyManager:
             db_path: Path to terminology database
             embedding_model: Model for embeddings
             similarity_threshold: Threshold for similar terms
+            prompt_loader: Prompt loader instance (creates default if None)
         """
         self.client = openai_client
         self.embedding_model = embedding_model
         self.similarity_threshold = similarity_threshold
+        self.prompt_loader = prompt_loader or PromptLoader()
 
         # Initialize SQLite database for terms
         self.db_path = db_path
@@ -84,6 +88,9 @@ class TerminologyManager:
         Returns:
             List of extracted terms
         """
+        # Load prompt configuration
+        prompt_config = self.prompt_loader.load("terminology_extraction")
+
         # Combine all section content
         full_content = "\n\n".join([
             f"## {section.title}\n{section.content[:1000]}"
@@ -95,20 +102,24 @@ class TerminologyManager:
         if len(full_content) > max_chars:
             full_content = full_content[:max_chars] + "\n..."
 
-        prompt = self._build_extraction_prompt(full_content, source_lang, target_lang)
+        # Format prompts
+        system_prompt = prompt_config.format_system_prompt()
+        user_prompt = prompt_config.format_user_prompt(
+            source_language=source_lang,
+            target_language=target_lang,
+            content=full_content,
+        )
 
         messages = [
-            {
-                "role": "system",
-                "content": "You are a terminology extraction expert for scientific texts.",
-            },
-            {
-                "role": "user",
-                "content": prompt,
-            }
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
         ]
 
-        response = self.client.chat_completion(messages)
+        response = self.client.chat_completion(
+            messages,
+            temperature=prompt_config.temperature,
+            max_tokens=prompt_config.max_tokens,
+        )
 
         # Parse terms
         terms = self._parse_terms(response)
@@ -128,43 +139,6 @@ class TerminologyManager:
             enriched_terms.append(term)
 
         return enriched_terms
-
-    def _build_extraction_prompt(self, content: str, source_lang: str, target_lang: str) -> str:
-        """Build prompt for terminology extraction."""
-        lang_map = {
-            "russian": "русского",
-            "english": "английского",
-        }
-
-        source_lang_ru = lang_map.get(source_lang.lower(), source_lang)
-        target_lang_ru = lang_map.get(target_lang.lower(), target_lang)
-
-        prompt = f"""Извлеки все специфичные термины из научного текста на {source_lang_ru} языке и предложи их перевод на {target_lang_ru}.
-
-Фокусируйся на:
-- Математических терминах
-- Научных понятиях
-- Доменных терминах
-- Устоявшихся выражениях
-
-Игнорируй общеупотребительные слова.
-
-Текст:
-{content}
-
-Верни результат в JSON формате:
-{{
-  "terms": [
-    {{
-      "source": "исходный термин",
-      "target": "предложенный перевод",
-      "context": "краткий контекст использования"
-    }},
-    ...
-  ]
-}}
-"""
-        return prompt
 
     def _parse_terms(self, response: str) -> List[Term]:
         """Parse LLM response with terms."""

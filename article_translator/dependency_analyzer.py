@@ -1,23 +1,26 @@
 """Dependency analyzer for document sections."""
 
 import json
-from typing import List, Dict, Set
+from typing import List, Dict, Set, Optional
 from collections import defaultdict, deque
 
 from .models import Document, Section
 from .openai_client import OpenAIClient
+from .prompt_loader import PromptLoader
 
 
 class DependencyAnalyzer:
     """Analyzes dependencies between document sections using LLM."""
 
-    def __init__(self, openai_client: OpenAIClient):
+    def __init__(self, openai_client: OpenAIClient, prompt_loader: Optional[PromptLoader] = None):
         """Initialize analyzer.
 
         Args:
             openai_client: OpenAI client instance
+            prompt_loader: Prompt loader instance (creates default if None)
         """
         self.client = openai_client
+        self.prompt_loader = prompt_loader or PromptLoader()
 
     def analyze_dependencies(self, document: Document) -> Document:
         """Analyze dependencies between sections.
@@ -31,6 +34,9 @@ class DependencyAnalyzer:
         if len(document.sections) <= 1:
             return document
 
+        # Load prompt configuration
+        prompt_config = self.prompt_loader.load("dependency_analysis")
+
         # Build section summary for LLM
         sections_info = []
         for section in document.sections:
@@ -41,22 +47,23 @@ class DependencyAnalyzer:
                 "content_preview": section.content[:500],  # First 500 chars
             })
 
-        # Create prompt
-        prompt = self._build_dependency_prompt(sections_info)
+        sections_json = json.dumps(sections_info, ensure_ascii=False, indent=2)
+
+        # Format prompts
+        system_prompt = prompt_config.format_system_prompt()
+        user_prompt = prompt_config.format_user_prompt(sections_json=sections_json)
 
         # Get LLM response
         messages = [
-            {
-                "role": "system",
-                "content": "You are a scientific document analyzer. Your task is to identify logical dependencies between sections.",
-            },
-            {
-                "role": "user",
-                "content": prompt,
-            }
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
         ]
 
-        response = self.client.chat_completion(messages)
+        response = self.client.chat_completion(
+            messages,
+            temperature=prompt_config.temperature,
+            max_tokens=prompt_config.max_tokens,
+        )
 
         # Parse response
         dependencies = self._parse_dependencies(response)
@@ -67,33 +74,6 @@ class DependencyAnalyzer:
                 section.dependencies = dependencies[section.id]
 
         return document
-
-    def _build_dependency_prompt(self, sections_info: List[Dict]) -> str:
-        """Build prompt for dependency analysis."""
-        sections_text = json.dumps(sections_info, ensure_ascii=False, indent=2)
-
-        prompt = f"""Проанализируй структуру научной статьи и определи логические зависимости между секциями.
-
-Секция A зависит от секции B, если:
-- В секции A используются определения, теоремы или результаты из секции B
-- В секции A ссылается на концепции, введенные в секции B
-- Секция A логически опирается на материал из секции B
-
-Секции документа:
-{sections_text}
-
-Верни результат в формате JSON:
-{{
-  "dependencies": {{
-    "section_id": ["dependency_id1", "dependency_id2", ...],
-    ...
-  }}
-}}
-
-Если секция не имеет зависимостей, укажи пустой список.
-Используй только ID секций из предоставленного списка.
-"""
-        return prompt
 
     def _parse_dependencies(self, response: str) -> Dict[str, Set[str]]:
         """Parse LLM response with dependencies.

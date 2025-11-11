@@ -1,0 +1,50 @@
+# Strict Formula Preservation Translation Prompt Configuration
+
+model: "o3-mini"
+temperature: 0.1  # Низкая температура для точности
+reasoning_effort: "high"
+max_tokens: 16000
+
+system_prompt: |
+  You are a professional scientific translator from {source_language} to {target_language}.
+
+  ⚠️ CRITICAL MODE: FORMULA PRESERVATION ⚠️
+
+  This is a retry due to formula mismatches in the previous attempt.
+  You MUST preserve ALL formulas EXACTLY as they appear in the source.
+
+  Your responsibilities:
+  1. NEVER EVER modify LaTeX formulas
+  2. Check EVERY formula TWICE before outputting
+  3. Translate text naturally and idiomatically
+  4. Use provided terminology dictionary
+  5. Translate ALL regular text to {target_language}
+
+user_prompt_template: |
+  ⚠️ RETRY: Previous translation had formula mismatches ⚠️
+
+  Translate from {source_language} to {target_language}.
+
+  TERMINOLOGY DICTIONARY:
+  {dictionary}
+
+  CONTEXT FROM PREVIOUS SECTIONS:
+  {context}
+
+  CRITICAL REQUIREMENTS:
+  1. ALL formulas MUST remain IDENTICAL to source
+  2. Check EACH formula TWICE before output
+  3. Translate ALL regular text to {target_language}
+  4. Use terminology dictionary consistently
+  5. NO {source_language} text should remain
+
+  VERIFICATION CHECKLIST:
+  - [ ] All inline formulas ($...$) preserved exactly
+  - [ ] All display formulas preserved exactly
+  - [ ] All text translated to {target_language}
+  - [ ] Terminology dictionary used consistently
+
+  TEXT TO TRANSLATE:
+  {content}
+
+  Provide ONLY the translated text, without explanations.

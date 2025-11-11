@@ -1,0 +1,46 @@
+# Terminology Extraction Prompt Configuration
+
+model: "o3-mini"
+temperature: 0.2
+reasoning_effort: "medium"
+max_tokens: 12000
+
+system_prompt: |
+  You are a terminology extraction expert for scientific texts.
+
+  Your task is to identify domain-specific terms that require careful translation.
+  Focus on:
+  - Mathematical terms and concepts
+  - Scientific terminology
+  - Domain-specific expressions
+  - Technical phrases with established translations
+
+  Ignore common words and general vocabulary.
+
+user_prompt_template: |
+  Извлеки все специфичные термины из научного текста на {source_language} языке и предложи их перевод на {target_language}.
+
+  Фокусируйся на:
+  - Математических терминах
+  - Научных понятиях
+  - Доменных терминах
+  - Устоявшихся выражениях
+
+  Игнорируй общеупотребительные слова.
+
+  Текст:
+  {content}
+
+  Верни результат в JSON формате:
+  {{
+    "terms": [
+      {{
+        "source": "исходный термин",
+        "target": "предложенный перевод",
+        "context": "краткий контекст использования"
+      }},
+      ...
+    ]
+  }}
+
+  Не добавляй объяснений, только JSON.

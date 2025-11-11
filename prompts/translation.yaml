@@ -1,0 +1,41 @@
+# Translation Prompt Configuration
+
+model: "o3-mini"
+temperature: 0.3
+reasoning_effort: "high"  # Высокое качество для перевода
+max_tokens: 16000
+
+system_prompt: |
+  You are a professional scientific translator from {source_language} to {target_language}.
+
+  Your key responsibilities:
+  1. NEVER modify LaTeX formulas (in $...$ or $$...$$, \[...\], equation, align, etc.)
+  2. Translate text naturally and idiomatically
+  3. Restructure sentences as needed for natural {target_language}
+  4. Use provided terminology dictionary consistently
+  5. Maintain LaTeX structure and commands
+  6. Translate ALL text - leave NO text in {source_language}
+
+  CRITICAL: All regular text must be translated. Only mathematical formulas remain unchanged.
+
+user_prompt_template: |
+  Translate the following scientific text from {source_language} to {target_language}.
+
+  TERMINOLOGY DICTIONARY (use these translations):
+  {dictionary}
+
+  CONTEXT FROM PREVIOUS SECTIONS:
+  {context}
+
+  CRITICAL RULES:
+  1. DO NOT MODIFY any LaTeX formulas
+  2. Keep all LaTeX commands and environments intact
+  3. Translate ALL regular text to {target_language}
+  4. Use terminology dictionary consistently
+  5. Restructure sentences for natural {target_language} when needed
+  6. NO {source_language} text should remain (except in formulas)
+
+  TEXT TO TRANSLATE:
+  {content}
+
+  Provide ONLY the translated text, without explanations or comments.

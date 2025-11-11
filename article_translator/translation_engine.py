@@ -4,6 +4,7 @@ from typing import Dict, List, Optional
 
 from .models import Document, Section
 from .openai_client import OpenAIClient
+from .prompt_loader import PromptLoader
 
 
 class TranslationEngine:
@@ -15,6 +16,7 @@ class TranslationEngine:
         source_language: str = "russian",
         target_language: str = "english",
         max_retries: int = 2,
+        prompt_loader: Optional[PromptLoader] = None,
     ):
         """Initialize translation engine.
 
@@ -23,11 +25,13 @@ class TranslationEngine:
             source_language: Source language name
             target_language: Target language name
             max_retries: Maximum translation retry attempts
+            prompt_loader: Prompt loader instance (creates default if None)
         """
         self.client = openai_client
         self.source_language = source_language
         self.target_language = target_language
         self.max_retries = max_retries
+        self.prompt_loader = prompt_loader or PromptLoader()
 
     def translate_section(
         self,
@@ -47,90 +51,50 @@ class TranslationEngine:
         Returns:
             Translated section content
         """
-        # Build context from dependencies
-        context = self._build_context(dependency_translations)
+        # Load appropriate prompt config
+        prompt_name = "translation_strict_formulas" if strict_formulas else "translation"
+        prompt_config = self.prompt_loader.load(prompt_name)
 
-        # Build prompt
-        prompt = self._build_translation_prompt(
-            section.content,
-            dictionary,
-            context,
-            strict_formulas,
+        # Build context and dictionary strings
+        context = self._build_context(dependency_translations)
+        dict_text = self._format_dictionary(dictionary)
+
+        # Format prompts
+        system_prompt = prompt_config.format_system_prompt(
+            source_language=self.source_language,
+            target_language=self.target_language,
+        )
+        user_prompt = prompt_config.format_user_prompt(
+            source_language=self.source_language,
+            target_language=self.target_language,
+            dictionary=dict_text,
+            context=context,
+            content=section.content,
         )
 
         messages = [
-            {
-                "role": "system",
-                "content": self._get_system_prompt(),
-            },
-            {
-                "role": "user",
-                "content": prompt,
-            }
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
         ]
 
         # Perform translation
-        translation = self.client.chat_completion(messages)
+        translation = self.client.chat_completion(
+            messages,
+            temperature=prompt_config.temperature,
+            max_tokens=prompt_config.max_tokens,
+        )
 
         return translation.strip()
 
-    def _get_system_prompt(self) -> str:
-        """Get system prompt for translation."""
-        return f"""You are a professional scientific translator from {self.source_language} to {self.target_language}.
+    def _format_dictionary(self, dictionary: Dict[str, str]) -> str:
+        """Format dictionary for prompt."""
+        if not dictionary:
+            return "(no specific terms)"
 
-Your key responsibilities:
-1. NEVER modify LaTeX formulas (in $...$ or $$...$$, \\[...\\], equation, align, etc.)
-2. Translate text naturally and idiomatically
-3. Restructure sentences as needed for natural {self.target_language}
-4. Use provided terminology dictionary consistently
-5. Maintain LaTeX structure and commands
-"""
-
-    def _build_translation_prompt(
-        self,
-        content: str,
-        dictionary: Dict[str, str],
-        context: str,
-        strict_formulas: bool,
-    ) -> str:
-        """Build translation prompt."""
-        # Format dictionary
-        dict_text = "\n".join([
+        return "\n".join([
             f"- {src} → {tgt}"
             for src, tgt in dictionary.items()
         ])
-
-        formula_instruction = ""
-        if strict_formulas:
-            formula_instruction = """
-⚠️ CRITICAL: FORMULA PRESERVATION ⚠️
-All formulas MUST remain IDENTICAL to the source.
-Check EVERY formula TWICE before outputting.
-This is a retry due to formula mismatches in the previous attempt.
-"""
-
-        prompt = f"""Translate the following scientific text from {self.source_language} to {self.target_language}.
-
-TERMINOLOGY DICTIONARY (use these translations):
-{dict_text if dict_text else "(no specific terms)"}
-
-CONTEXT FROM PREVIOUS SECTIONS:
-{context if context else "(no dependencies)"}
-
-CRITICAL RULES:
-1. DO NOT MODIFY any LaTeX formulas
-2. Keep all LaTeX commands and environments intact
-3. Translate text naturally and idiomatically
-4. Use terminology dictionary consistently
-5. Restructure sentences for natural {self.target_language} when needed
-{formula_instruction}
-
-TEXT TO TRANSLATE:
-{content}
-
-Provide ONLY the translated text, without explanations or comments.
-"""
-        return prompt
 
     def _build_context(self, dependency_translations: Dict[str, str]) -> str:
         """Build context string from dependency translations."""
@@ -222,3 +186,62 @@ Provide ONLY the translated text, without explanations or comments.
 
         section.translation_attempts += 1
         return translation
+
+    def fix_cyrillic(
+        self,
+        text: str,
+        marked_text: str,
+        highlighted_fragments: List[str],
+        dictionary: Dict[str, str],
+    ) -> str:
+        """Fix untranslated Cyrillic fragments.
+
+        Args:
+            text: Original text with Cyrillic
+            marked_text: Text with marked Cyrillic (>>> <<<)
+            highlighted_fragments: List of Cyrillic fragments
+            dictionary: Terminology dictionary
+
+        Returns:
+            Text with Cyrillic fragments translated
+        """
+        print(f"  Fixing {len(highlighted_fragments)} Cyrillic fragment(s)")
+
+        # Load prompt configuration
+        prompt_config = self.prompt_loader.load("cyrillic_fix")
+
+        # Format dictionary
+        dict_text = self._format_dictionary(dictionary)
+
+        # Format highlighted fragments
+        fragments_text = "\n".join([
+            f"{i+1}. >>>{frag}<<<"
+            for i, frag in enumerate(highlighted_fragments)
+        ])
+
+        # Format prompts
+        system_prompt = prompt_config.format_system_prompt(
+            source_language=self.source_language,
+            target_language=self.target_language,
+        )
+        user_prompt = prompt_config.format_user_prompt(
+            source_language=self.source_language,
+            target_language=self.target_language,
+            dictionary=dict_text,
+            highlighted_fragments=fragments_text,
+            marked_text=marked_text,
+        )
+
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ]
+
+        # Get fixed translation
+        fixed_text = self.client.chat_completion(
+            messages,
+            temperature=prompt_config.temperature,
+            max_tokens=prompt_config.max_tokens,
+        )
+
+        return fixed_text.strip()
