@@ -1,6 +1,12 @@
 # Terminology Extraction Prompt Configuration
 
-model: "o3-mini"
+# Модель для извлечения терминологии
+# Примеры через OpenRouter:
+# - "anthropic/claude-3.5-sonnet" - отлично для терминологии
+# - "openai/gpt-4o" - хороший баланс качества и скорости
+# - "google/gemini-pro-1.5" - большой контекст
+
+model: "anthropic/claude-3.5-sonnet"
 temperature: 0.2
 reasoning_effort: "medium"
 max_tokens: 12000

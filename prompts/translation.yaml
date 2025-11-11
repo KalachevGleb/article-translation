@@ -1,8 +1,15 @@
 # Translation Prompt Configuration
 
-model: "o3-mini"
+# Модель для основного перевода (важная задача - используем мощную модель)
+# Примеры через OpenRouter:
+# - "anthropic/claude-3.5-sonnet" - отличное качество перевода
+# - "anthropic/claude-3-opus" - максимальное качество (дорого)
+# - "openai/gpt-4o" - хорошее качество от OpenAI
+# - "openai/o1-preview" - reasoning модель (очень медленно, дорого)
+
+model: "anthropic/claude-3.5-sonnet"
 temperature: 0.3
-reasoning_effort: "high"  # Высокое качество для перевода
+reasoning_effort: "high"  # Высокое качество для перевода (для reasoning моделей)
 max_tokens: 16000
 
 system_prompt: |

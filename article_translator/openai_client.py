@@ -1,4 +1,4 @@
-"""OpenAI API client wrapper."""
+"""OpenAI API client wrapper with OpenRouter support."""
 
 import os
 import time
@@ -8,40 +8,54 @@ import tiktoken
 
 
 class OpenAIClient:
-    """Wrapper for OpenAI API with error handling and retries."""
+    """Wrapper for OpenAI/OpenRouter API with error handling and retries.
+
+    Supports both direct OpenAI API and OpenRouter for accessing multiple providers.
+    """
 
     def __init__(
         self,
         api_key: Optional[str] = None,
-        model: str = "o3-mini",
+        base_url: Optional[str] = None,
+        model: str = "openai/gpt-4o-mini",
         temperature: float = 0.3,
         max_tokens: int = 16000,
         max_retries: int = 3,
     ):
-        """Initialize OpenAI client.
+        """Initialize OpenAI/OpenRouter client.
 
         Args:
-            api_key: OpenAI API key (uses env var if not provided)
-            model: Model name to use
+            api_key: API key (OpenAI or OpenRouter)
+            base_url: Base URL for API (use "https://openrouter.ai/api/v1" for OpenRouter)
+            model: Model name (use "provider/model" format for OpenRouter)
             temperature: Sampling temperature
             max_tokens: Maximum tokens in response
             max_retries: Maximum number of retry attempts
         """
-        self.api_key = api_key or os.getenv("OPENAI_API_KEY")
+        self.api_key = api_key or os.getenv("OPENAI_API_KEY") or os.getenv("OPENROUTER_API_KEY")
         if not self.api_key:
-            raise ValueError("OpenAI API key not provided")
+            raise ValueError("API key not provided (set OPENAI_API_KEY or OPENROUTER_API_KEY)")
 
-        self.client = OpenAI(api_key=self.api_key)
+        self.base_url = base_url
         self.model = model
         self.temperature = temperature
         self.max_tokens = max_tokens
         self.max_retries = max_retries
 
+        # Initialize client with optional base_url for OpenRouter
+        client_kwargs = {"api_key": self.api_key}
+        if self.base_url:
+            client_kwargs["base_url"] = self.base_url
+
+        self.client = OpenAI(**client_kwargs)
+
         # Initialize tokenizer for counting tokens
         try:
-            self.encoding = tiktoken.encoding_for_model(model)
+            # Try to get encoding for the model (works for OpenAI models)
+            model_name = model.split('/')[-1] if '/' in model else model
+            self.encoding = tiktoken.encoding_for_model(model_name)
         except KeyError:
-            # Fallback to cl100k_base for unknown models
+            # Fallback to cl100k_base for unknown models (e.g., from other providers)
             self.encoding = tiktoken.get_encoding("cl100k_base")
 
     def count_tokens(self, text: str) -> int:

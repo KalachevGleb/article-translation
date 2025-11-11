@@ -1,8 +1,14 @@
 # Dependency Analysis Prompt Configuration
 
-model: "o3-mini"
+# Модель для анализа зависимостей (быстрая модель для простой задачи)
+# Примеры через OpenRouter:
+# - "anthropic/claude-3-haiku" - быстрая и дешевая
+# - "openai/gpt-4o-mini" - быстрая OpenAI модель
+# - "google/gemini-flash-1.5" - быстрая Google модель
+
+model: "anthropic/claude-3-haiku"
 temperature: 0.3
-reasoning_effort: "medium"  # low, medium, high для o3 моделей
+reasoning_effort: "medium"  # low, medium, high (для моделей с reasoning)
 max_tokens: 8000
 
 system_prompt: |

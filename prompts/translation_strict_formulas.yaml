@@ -1,6 +1,13 @@
 # Strict Formula Preservation Translation Prompt Configuration
 
-model: "o3-mini"
+# Модель для повторного перевода с акцентом на формулы
+# Используем самые внимательные модели
+# Примеры через OpenRouter:
+# - "anthropic/claude-3-opus" - максимальная точность
+# - "anthropic/claude-3.5-sonnet" - хороший баланс
+# - "openai/o1" - reasoning для критичных случаев
+
+model: "anthropic/claude-3-opus"
 temperature: 0.1  # Низкая температура для точности
 reasoning_effort: "high"
 max_tokens: 16000

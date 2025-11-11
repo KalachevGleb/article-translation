@@ -40,9 +40,16 @@ class ArticleTranslator:
             env_var = api_key[2:-1]
             api_key = os.getenv(env_var)
 
+        # Get base_url for OpenRouter support
+        base_url = self.config["openai"].get("base_url")
+        if base_url and base_url.startswith("${") and base_url.endswith("}"):
+            env_var = base_url[2:-1]
+            base_url = os.getenv(env_var)
+
         # Initialize components
         self.openai_client = OpenAIClient(
             api_key=api_key,
+            base_url=base_url,
             model=self.config["openai"]["model"],
             temperature=self.config["openai"]["temperature"],
             max_tokens=self.config["openai"]["max_tokens"],
